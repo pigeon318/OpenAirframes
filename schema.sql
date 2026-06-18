@@ -14,14 +14,19 @@ CREATE TABLE aircraft (
     engine_count            INTEGER,
     seats                   INTEGER,
     year_manufactured       INTEGER,
-
+    aircraft_category         TEXT,
+    aircraft_category_raw     TEXT,
+    builder_certification     TEXT,
+    builder_certification_raw TEXT,
+    weight_class              TEXT,
+    weight_class_raw          TEXT,
     owner_name      TEXT,
     owner_type      TEXT,
     owner_type_raw  TEXT,
     owner_city      TEXT,
     owner_state     TEXT,
     owner_country   TEXT,
-
+     
     status                 TEXT,
     status_raw             TEXT,
     certification          TEXT,
