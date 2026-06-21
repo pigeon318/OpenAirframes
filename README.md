@@ -9,19 +9,9 @@ OpenAirframes is a free public API for aircraft registry data. It aggregates dat
  
 ---
  
-## Why this exists
- 
-> *This section is a placeholder — please rewrite in your own voice. The story below is a rough sketch based on what you've told me; replace it with your own words. Your authentic motivation is the single most important thing in this README.*
- 
-I started this project because, when I went looking for a free aircraft database, every option I found was broken in some way. Most had blank rows, malformed data, or no information about where the data actually came from. Some were behind paywalls. Some were scrapes of scrapes, years out of date, with no clear ownership. None of them were what I wanted.
- 
-OpenAirframes is the database I wished existed: aggregated directly from authoritative sources, with explicit attribution on every field, no removal requests honoured, AGPLv3-licensed so it can't be quietly sold off and closed.
- 
----
- 
 ## Try it
  
-A working request you can run right now:
+if you want to you can try it out now with searching api.pigeite.com/aircraft/any american hex code
  
 ```bash
 curl https://api.pigeite.com/aircraft/ac0cab
