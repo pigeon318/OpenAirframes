@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi import Query
 from fastapi import Request
 from fastapi import HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from datetime import date
 from datetime import datetime
@@ -113,6 +114,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.mount("/ui", StaticFiles(directory="static", html=True), name="ui")
 
 
 @app.get("/")
