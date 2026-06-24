@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from psycopg_pool import AsyncConnectionPool
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi import Query
 from fastapi import Request
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -32,8 +33,8 @@ class AircraftStandard(BaseModel):
     status: str | None
     certification: str | None
     source: str
- 
- 
+
+
 class AircraftFull(AircraftStandard):
     serial_number: str | None
     source_record_id: str | None
@@ -51,7 +52,11 @@ class AircraftFull(AircraftStandard):
     expiration_date: date | None
     created_at: datetime
     updated_at: datetime
- 
+
+
+class BulkRequest(BaseModel):
+    identifiers: list[str]
+
 
 load_dotenv()
 
@@ -77,7 +82,7 @@ STANDARD_COLUMNS = [
     "certification",
     "source",
 ]
- 
+
 FULL_COLUMNS = STANDARD_COLUMNS + [
     "serial_number",
     "source_record_id",
@@ -106,7 +111,9 @@ async def lifespan(app: FastAPI):
     yield
     await pool.close()
 
+
 app = FastAPI(lifespan=lifespan)
+
 
 @app.get("/")
 async def root():
@@ -126,6 +133,109 @@ async def version(request: Request):
             await cur.execute("SELECT version()")
             row = await cur.fetchone()
             return {"postgres_version": row[0]}
+
+
+@app.get("/aircraft")
+async def search_aircraft(
+    request: Request,
+    manufacturer: str | None = None,
+    model: str | None = None,
+    owner_name: str | None = None,
+    status: str | None = None,
+    aircraft_category: str | None = None,
+    type_aircraft: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    detail: Literal["standard", "full"] = "standard",
+):
+    columns = FULL_COLUMNS if detail == "full" else STANDARD_COLUMNS
+    filters = []
+    params = []
+
+    if manufacturer:
+        filters.append("manufacturer ILIKE %s")
+        params.append(f"%{manufacturer}%")
+    if model:
+        filters.append("model ILIKE %s")
+        params.append(f"%{model}%")
+    if owner_name:
+        filters.append("owner_name ILIKE %s")
+        params.append(f"%{owner_name}%")
+    if status:
+        filters.append("status = %s")
+        params.append(status)
+    if aircraft_category:
+        filters.append("aircraft_category = %s")
+        params.append(aircraft_category)
+    if type_aircraft:
+        filters.append("type_aircraft = %s")
+        params.append(type_aircraft)
+
+    if not filters:
+        raise HTTPException(status_code=400, detail="At least one filter is required")
+
+    where = "WHERE " + " AND ".join(filters)
+    sql = f"SELECT {', '.join(columns)} FROM aircraft {where} LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+
+    local_pool = request.app.state.pool
+    async with local_pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(sql, params)
+            rows = await cur.fetchall()
+
+    return [dict(zip(columns, row)) for row in rows]
+
+
+@app.post("/aircraft/bulk")
+async def bulk_aircraft(
+    body: BulkRequest,
+    request: Request,
+    detail: Literal["standard", "full"] = "standard",
+):
+    if not body.identifiers:
+        return {}
+    if len(body.identifiers) > 100:
+        raise HTTPException(status_code=400, detail="Maximum 100 identifiers per request")
+
+    columns = FULL_COLUMNS if detail == "full" else STANDARD_COLUMNS
+    results = {ident: None for ident in body.identifiers}
+
+    hex_map = {}
+    reg_map = {}
+
+    for ident in body.identifiers:
+        if re.fullmatch(r"[0-9a-fA-F]{6}", ident):
+            hex_map[ident.lower()] = ident
+        else:
+            normalised = ident.upper().replace("-", "").replace(" ", "")
+            if normalised:
+                reg_map[normalised] = ident
+
+    local_pool = request.app.state.pool
+    async with local_pool.connection() as conn:
+        async with conn.cursor() as cur:
+            if hex_map:
+                sql = f"SELECT {', '.join(columns)} FROM aircraft WHERE icao_hex = ANY(%s)"
+                await cur.execute(sql, (list(hex_map.keys()),))
+                for row in await cur.fetchall():
+                    data = dict(zip(columns, row))
+                    original = hex_map.get(data["icao_hex"])
+                    if original:
+                        results[original] = data
+
+            if reg_map:
+                sql = f"SELECT {', '.join(columns)} FROM aircraft WHERE UPPER(REPLACE(registration, '-', '')) = ANY(%s)"
+                await cur.execute(sql, (list(reg_map.keys()),))
+                for row in await cur.fetchall():
+                    data = dict(zip(columns, row))
+                    if data["registration"]:
+                        normalised = data["registration"].upper().replace("-", "").replace(" ", "")
+                        original = reg_map.get(normalised)
+                        if original:
+                            results[original] = data
+
+    return results
 
 
 @app.get("/aircraft/{identifier}")
