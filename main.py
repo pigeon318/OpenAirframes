@@ -128,20 +128,29 @@ async def version(request: Request):
             return {"postgres_version": row[0]}
 
 
-@app.get("/aircraft/{icao_hex}")
+@app.get("/aircraft/{identifier}")
 async def get_aircraft(
-    icao_hex: str,
+    identifier: str,
     request: Request,
-    detail: Literal["standard", "full"] = "standard",):
-    if not re.fullmatch(r"^[0-9a-f]{6}$", icao_hex):
-        raise HTTPException(status_code=400, detail="icao_hex must be 6 lowercase hex characters")
+    detail: Literal["standard", "full"] = "standard",
+):
     columns = FULL_COLUMNS if detail == "full" else STANDARD_COLUMNS
-    sql = f"SELECT {', '.join(columns)} FROM aircraft WHERE icao_hex = %s"
     local_pool = request.app.state.pool
+
+    if re.fullmatch(r"[0-9a-fA-F]{6}", identifier):
+        sql = f"SELECT {', '.join(columns)} FROM aircraft WHERE icao_hex = %s"
+        param = identifier.lower()
+    else:
+        sql = f"SELECT {', '.join(columns)} FROM aircraft WHERE UPPER(REPLACE(registration, '-', '')) = %s"
+        param = identifier.upper().replace("-", "").replace(" ", "")
+        if not param:
+            raise HTTPException(status_code=400, detail="Invalid identifier")
+
     async with local_pool.connection() as conn:
         async with conn.cursor() as cur:
-            await cur.execute(sql, (icao_hex,))
+            await cur.execute(sql, (param,))
             row = await cur.fetchone()
+
     if row is None:
         raise HTTPException(status_code=404, detail="Aircraft not found")
     return dict(zip(columns, row))
