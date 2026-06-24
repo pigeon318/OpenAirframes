@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import time
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -13,8 +14,14 @@ data_dir = script_dir.parent / "data"
 SOURCE = "Mictronics"
 TRUST_ORDER = ["FAA", "UK_CAA", "Mictronics", "OpenSky", "user"]
 
-AIRCRAFTS_URL = "https://raw.githubusercontent.com/Mictronics/readsb-protobuf/dev/webapp/src/db/aircrafts.json"
-TYPES_URL = "https://raw.githubusercontent.com/Mictronics/readsb-protobuf/dev/webapp/src/db/types.json"
+AIRCRAFTS_URLS = [
+    "https://raw.githubusercontent.com/Mictronics/readsb-protobuf/dev/webapp/src/db/aircrafts.json",
+    "https://raw.githubusercontent.com/Mictronics/readsb-protobuf/master/webapp/src/db/aircrafts.json",
+]
+TYPES_URLS = [
+    "https://raw.githubusercontent.com/Mictronics/readsb-protobuf/dev/webapp/src/db/types.json",
+    "https://raw.githubusercontent.com/Mictronics/readsb-protobuf/master/webapp/src/db/types.json",
+]
 
 WTC_MAP = {
     "L": "Light",
@@ -24,16 +31,31 @@ WTC_MAP = {
 }
 
 
-def download(url, dest):
-    print(f"Downloading {dest.name} ...", flush=True)
-    urllib.request.urlretrieve(url, dest)
+def download(urls, dest, retries=3):
+    tmp = dest.with_suffix(".tmp")
+    for url in urls:
+        for attempt in range(retries):
+            try:
+                print(f"Downloading {dest.name} from {url} ...", flush=True)
+                urllib.request.urlretrieve(url, tmp)
+                tmp.replace(dest)
+                return
+            except Exception as e:
+                tmp.unlink(missing_ok=True)
+                wait = 2 ** attempt
+                if attempt < retries - 1:
+                    print(f"  failed ({e}), retrying in {wait}s ...", flush=True)
+                    time.sleep(wait)
+                else:
+                    print(f"  failed ({e}), trying next URL ...", flush=True)
+    raise RuntimeError(f"Could not download {dest.name} from any source")
 
 
 def ensure_files(aircrafts_path, types_path):
     if not aircrafts_path.exists():
-        download(AIRCRAFTS_URL, aircrafts_path)
+        download(AIRCRAFTS_URLS, aircrafts_path)
     if not types_path.exists():
-        download(TYPES_URL, types_path)
+        download(TYPES_URLS, types_path)
 
 
 def load_types(types_path):
