@@ -31,6 +31,15 @@ WTC_MAP = {
 }
 
 
+def valid_json_file(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            json.load(f)
+        return True
+    except (json.JSONDecodeError, OSError):
+        return False
+
+
 def download(urls, dest, retries=3):
     tmp = dest.with_suffix(".tmp")
     for url in urls:
@@ -38,6 +47,8 @@ def download(urls, dest, retries=3):
             try:
                 print(f"Downloading {dest.name} from {url} ...", flush=True)
                 urllib.request.urlretrieve(url, tmp)
+                if not valid_json_file(tmp):
+                    raise ValueError("Downloaded file is not valid JSON")
                 tmp.replace(dest)
                 return
             except Exception as e:
@@ -52,9 +63,11 @@ def download(urls, dest, retries=3):
 
 
 def ensure_files(aircrafts_path, types_path):
-    if not aircrafts_path.exists():
+    if not aircrafts_path.exists() or not valid_json_file(aircrafts_path):
+        aircrafts_path.unlink(missing_ok=True)
         download(AIRCRAFTS_URLS, aircrafts_path)
-    if not types_path.exists():
+    if not types_path.exists() or not valid_json_file(types_path):
+        types_path.unlink(missing_ok=True)
         download(TYPES_URLS, types_path)
 
 
