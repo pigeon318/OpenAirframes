@@ -1,4 +1,3 @@
-import csv
 import os
 import sys
 from datetime import datetime
@@ -6,18 +5,73 @@ from pathlib import Path
 
 import psycopg
 from dotenv import load_dotenv
+from openpyxl import load_workbook
 
 script_dir = Path(__file__).parent
 data_dir = script_dir.parent / "data"
 SOURCE = "UK_CAA"
 TRUST_ORDER = ["FAA", "UK_CAA", "Mictronics", "OpenSky", "user"]
 
+COLUMN_MAP = {
+    "registration": ["registration marks", "mark", "registration"],
+    "icao_hex": ["icao 24 bit address", "mode s code (hex)", "icao"],
+    "manufacturer": ["manufacturer", "aircraft type/manufacturer", "manufacturer name"],
+    "model": ["generic name", "popular name", "designation", "model"],
+    "serial_number": ["serial no", "serial number", "aircraft serial no"],
+    "owner_name": ["registered owner", "owner", "full names"],
+    "ownership_status": ["ownership status"],
+    "aircraft_class": ["aircraft class", "class"],
+    "engine_count": ["number of engines", "no of engines", "engines"],
+    "engine_type": ["engine type", "engine"],
+    "engine_manufacturer": ["engine manufacturer"],
+    "engine_class": ["engine class"],
+    "cert_category": ["airworthiness certificate category", "coa category", "certificate category"],
+    "cert_expiry": ["airworthiness certificate expiry", "coa expiry", "certificate expiry"],
+    "mtow": ["maximum take off weight", "mtow", "max take off weight"],
+    "year_of_construction": ["year of construction", "year built", "year manufactured"],
+    "max_passengers": ["maximum number of passengers", "max passengers", "seats"],
+    "date_current_reg": ["date of current registration", "current registration date"],
+    "date_first_reg": ["date of first registration", "first registration date"],
+    "previous_identity": ["previous identity", "previous registration"],
+    "address_1": ["address 1", "registered address 1"],
+    "address_2": ["address 2", "registered address 2"],
+    "address_3": ["address 3", "registered address 3"],
+    "address_4": ["address 4", "registered address 4"],
+    "address_5": ["address 5", "registered address 5"],
+}
 
-def parse_date(s):
-    s = (s or "").strip()
+
+def normalise_header(h):
+    return str(h).strip().lower() if h is not None else ""
+
+
+def build_header_index(headers):
+    norm = {normalise_header(h): i for i, h in enumerate(headers)}
+    index = {}
+    for field, candidates in COLUMN_MAP.items():
+        for candidate in candidates:
+            if candidate in norm:
+                index[field] = norm[candidate]
+                break
+    return index
+
+
+def cell_str(cell):
+    if cell is None or cell.value is None:
+        return None
+    v = str(cell.value).strip()
+    return v if v else None
+
+
+def cell_date(cell):
+    if cell is None or cell.value is None:
+        return None
+    if isinstance(cell.value, datetime):
+        return cell.value.date()
+    s = str(cell.value).strip()
     if not s:
         return None
-    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%y"):
         try:
             return datetime.strptime(s, fmt).date()
         except ValueError:
@@ -25,91 +79,101 @@ def parse_date(s):
     return None
 
 
-def parse_int(s):
-    s = (s or "").strip()
-    try:
-        return int(s)
-    except (ValueError, TypeError):
+def cell_int(cell):
+    if cell is None or cell.value is None:
         return None
+    try:
+        return int(cell.value)
+    except (ValueError, TypeError):
+        try:
+            return int(str(cell.value).strip())
+        except (ValueError, TypeError):
+            return None
 
 
-def clean(d, key):
-    return d.get(key, "").strip() or None
+def get_col(row, index, field):
+    i = index.get(field)
+    if i is None:
+        return None
+    return row[i] if i < len(row) else None
 
 
 def load_register(path):
-    with open(path, encoding="latin-1") as f:
-        reader = csv.DictReader(f)
-        headers = {h.strip(): h for h in (reader.fieldnames or [])}
+    wb = load_workbook(path, read_only=True, data_only=True)
+    ws = wb.active
 
-        def get(row, name):
-            real_key = headers.get(name)
-            if real_key is None:
-                return None
-            return row.get(real_key, "").strip() or None
+    rows = ws.iter_rows()
+    header_row = next(rows, None)
+    if header_row is None:
+        return
 
-        for row in reader:
-            icao_raw = get(row, "ICAO 24 bit address")
-            if not icao_raw:
-                continue
-            icao_hex = icao_raw.strip().lower()
-            if len(icao_hex) != 6 or not all(c in "0123456789abcdef" for c in icao_hex):
-                continue
+    headers = [c.value for c in header_row]
+    index = build_header_index(headers)
 
-            mark = get(row, "Mark")
-            registration = mark if mark else None
+    for row in rows:
+        icao_cell = get_col(row, index, "icao_hex")
+        icao_raw = cell_str(icao_cell)
+        if not icao_raw:
+            continue
+        icao_hex = icao_raw.lower()
+        if len(icao_hex) != 6 or not all(c in "0123456789abcdef" for c in icao_hex):
+            continue
 
-            addr_parts = [
-                get(row, "Registered Address (1)"),
-                get(row, "Registered Address (2)"),
-                get(row, "Registered Address (3)"),
-                get(row, "Registered Address (4)"),
-                get(row, "Registered Address (5)"),
-            ]
-            addr_parts = [p for p in addr_parts if p]
+        reg_cell = get_col(row, index, "registration")
+        registration = cell_str(reg_cell)
 
-            owner_city = addr_parts[-3] if len(addr_parts) >= 3 else (addr_parts[0] if addr_parts else None)
-            owner_country = addr_parts[-1] if len(addr_parts) >= 2 else None
+        addr_parts = [
+            cell_str(get_col(row, index, f"address_{i}"))
+            for i in range(1, 6)
+        ]
+        addr_parts = [p for p in addr_parts if p]
+        owner_city = addr_parts[-3] if len(addr_parts) >= 3 else (addr_parts[0] if addr_parts else None)
+        owner_country = addr_parts[-1] if addr_parts else None
 
-            cofa_permit = get(row, "CofA/Permit")
-            if cofa_permit:
-                cofa_permit = cofa_permit.replace("C of A", "Certificate of Airworthiness")
+        engine_parts = [
+            cell_str(get_col(row, index, "engine_manufacturer")),
+            cell_str(get_col(row, index, "engine_type")),
+            cell_str(get_col(row, index, "engine_class")),
+        ]
+        engine_type_raw = " ".join(p for p in engine_parts if p) or None
 
-            yield {
-                "icao_hex": icao_hex,
-                "registration": registration,
-                "serial_number": get(row, "Serial Number"),
-                "source_record_id": get(row, "Certificate Number"),
-                "manufacturer": get(row, "Manufacturer Name"),
-                "model": get(row, "Manufacturer Designation"),
-                "type_aircraft": None,
-                "type_aircraft_raw": get(row, "Type Code"),
-                "type_engine": None,
-                "type_engine_raw": None,
-                "engine_count": None,
-                "seats": None,
-                "year_manufactured": None,
-                "owner_name": get(row, "Registered Owner"),
-                "owner_type": None,
-                "owner_type_raw": None,
-                "owner_city": owner_city,
-                "owner_state": None,
-                "owner_country": owner_country,
-                "status": "Valid",
-                "status_raw": None,
-                "certification": cofa_permit,
-                "last_action_date": None,
-                "cert_issue_date": parse_date(get(row, "Date of CofA/Permit Issue")),
-                "airworthiness_date": parse_date(get(row, "Date of CofA/Permit Issue")),
-                "expiration_date": parse_date(get(row, "Date of CofA/Permit Expiry")),
-                "aircraft_category": None,
-                "aircraft_category_raw": None,
-                "builder_certification": None,
-                "builder_certification_raw": None,
-                "weight_class": None,
-                "weight_class_raw": None,
-                "source": SOURCE,
-            }
+        cert_raw = cell_str(get_col(row, index, "cert_category"))
+
+        yield {
+            "icao_hex": icao_hex,
+            "registration": registration,
+            "serial_number": cell_str(get_col(row, index, "serial_number")),
+            "source_record_id": None,
+            "manufacturer": cell_str(get_col(row, index, "manufacturer")),
+            "model": cell_str(get_col(row, index, "model")),
+            "type_aircraft": None,
+            "type_aircraft_raw": cell_str(get_col(row, index, "aircraft_class")),
+            "type_engine": None,
+            "type_engine_raw": engine_type_raw,
+            "engine_count": cell_int(get_col(row, index, "engine_count")),
+            "seats": cell_int(get_col(row, index, "max_passengers")),
+            "year_manufactured": cell_int(get_col(row, index, "year_of_construction")),
+            "owner_name": cell_str(get_col(row, index, "owner_name")),
+            "owner_type": cell_str(get_col(row, index, "ownership_status")),
+            "owner_type_raw": cell_str(get_col(row, index, "ownership_status")),
+            "owner_city": owner_city,
+            "owner_state": None,
+            "owner_country": owner_country,
+            "status": "Valid",
+            "status_raw": None,
+            "certification": cert_raw,
+            "last_action_date": cell_date(get_col(row, index, "date_current_reg")),
+            "cert_issue_date": cell_date(get_col(row, index, "date_first_reg")),
+            "airworthiness_date": cell_date(get_col(row, index, "date_first_reg")),
+            "expiration_date": cell_date(get_col(row, index, "cert_expiry")),
+            "aircraft_category": None,
+            "aircraft_category_raw": None,
+            "builder_certification": None,
+            "builder_certification_raw": None,
+            "weight_class": None,
+            "weight_class_raw": cell_str(get_col(row, index, "mtow")),
+            "source": SOURCE,
+        }
 
 
 COLUMNS = [
@@ -223,25 +287,57 @@ def ingest(conn, path):
     return inserted, skipped_dup, affected
 
 
+def print_columns(path):
+    wb = load_workbook(path, read_only=True, data_only=True)
+    ws = wb.active
+    header_row = next(ws.iter_rows(), None)
+    if not header_row:
+        print("No rows found in file.")
+        return
+    print("Columns found in file:")
+    for i, cell in enumerate(header_row):
+        print(f"  [{i}] {cell.value!r}")
+    index = build_header_index([c.value for c in header_row])
+    print("\nMapped to schema fields:")
+    for field, col_i in index.items():
+        print(f"  {field} -> column {col_i} ({header_row[col_i].value!r})")
+    unmapped = [f for f in COLUMN_MAP if f not in index]
+    if unmapped:
+        print("\nUnmapped fields (will be null):")
+        for f in unmapped:
+            print(f"  {f}")
+
+
 def main():
     load_dotenv(script_dir.parent / ".env")
+
+    xl_path = data_dir / "GINFO.xlsx"
+    flag = None
+
+    args = sys.argv[1:]
+    if args and args[0] == "--print-columns":
+        flag = "print-columns"
+        args = args[1:]
+    if args:
+        xl_path = Path(args[0])
+
+    if not xl_path.exists():
+        print(f"Register file not found: {xl_path}", file=sys.stderr)
+        print("Expected path: data/GINFO.xlsx", file=sys.stderr)
+        sys.exit(1)
+
+    if flag == "print-columns":
+        print_columns(xl_path)
+        return
+
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         print("DATABASE_URL not set", file=sys.stderr)
         sys.exit(1)
 
-    csv_path = data_dir / "CAA_REGISTER.csv"
-    if len(sys.argv) > 1:
-        csv_path = Path(sys.argv[1])
-
-    if not csv_path.exists():
-        print(f"Register file not found: {csv_path}", file=sys.stderr)
-        print("Download from: https://www.caa.co.uk/data-and-analysis/aircraft/aircraft-register/", file=sys.stderr)
-        sys.exit(1)
-
     started = datetime.now()
     with psycopg.connect(database_url) as conn:
-        inserted, skipped, affected = ingest(conn, csv_path)
+        inserted, skipped, affected = ingest(conn, xl_path)
 
     elapsed = (datetime.now() - started).total_seconds()
     print(f"UK CAA ingest complete in {elapsed:.1f}s")
