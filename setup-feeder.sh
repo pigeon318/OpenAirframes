@@ -33,10 +33,16 @@ RESPONSE=$(curl -s -X POST "$SERVER_URL/feeders/register" \
   -H "Content-Type: application/json" \
   -d "{\"name\": \"$FEEDER_NAME\", \"location\": $([ -z "$LOCATION" ] && echo 'null' || echo "\"$LOCATION\"")}")
 
-KEY=$(echo "$RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('key', ''))")
+if [ -z "$RESPONSE" ]; then
+  echo "Error: No response from server at $SERVER_URL"
+  echo "Please check the server URL and try again."
+  exit 1
+fi
+
+KEY=$(echo "$RESPONSE" | python3 -c "import sys, json; data = json.load(sys.stdin); print(data.get('key', ''))" 2>/dev/null || echo "")
 
 if [ -z "$KEY" ]; then
-  echo "Error: Failed to register feeder"
+  echo "Error: Server returned invalid response"
   echo "Response: $RESPONSE"
   exit 1
 fi
