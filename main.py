@@ -10,10 +10,13 @@ from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 
 class AircraftStandard(BaseModel):
@@ -75,6 +78,13 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 POSITION_TTL = 60
+
+
+def feeder_key(request: Request) -> str:
+    return request.headers.get("X-Feeder-Key", get_remote_address(request))
+
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 STANDARD_COLUMNS = [
     "icao_hex", "registration", "manufacturer", "model", "type_aircraft",
@@ -141,7 +151,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.state.limiter = limiter
 app.mount("/ui", StaticFiles(directory="static", html=True), name="ui")
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Slow down."})
 
 
 async def resolve_feeder(key: str, pool) -> dict | None:
@@ -194,7 +210,8 @@ async def version(request: Request):
 
 
 @app.post("/feeders/register")
-async def register_feeder(body: FeederRegistration, request: Request):
+@limiter.limit("10/hour")
+async def register_feeder(request: Request, body: FeederRegistration):
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
@@ -214,7 +231,8 @@ async def register_feeder(body: FeederRegistration, request: Request):
 
 
 @app.post("/feed")
-async def feed(body: FeedPayload, request: Request):
+@limiter.limit("10/second", key_func=feeder_key)
+async def feed(request: Request, body: FeedPayload):
     key = request.headers.get("X-Feeder-Key", "") or (body.key or "")
     if not key:
         raise HTTPException(status_code=401, detail="X-Feeder-Key header required")
@@ -354,6 +372,7 @@ async def live_feeders(request: Request):
 
 
 @app.get("/aircraft")
+@limiter.limit("60/minute")
 async def search_aircraft(
     request: Request,
     manufacturer: str | None = None,
@@ -406,9 +425,10 @@ async def search_aircraft(
 
 
 @app.post("/aircraft/bulk")
+@limiter.limit("60/minute")
 async def bulk_aircraft(
-    body: BulkRequest,
     request: Request,
+    body: BulkRequest,
     detail: Literal["standard", "full"] = "standard",
 ):
     if not body.identifiers:
@@ -456,9 +476,10 @@ async def bulk_aircraft(
 
 
 @app.get("/aircraft/{identifier}")
+@limiter.limit("60/minute")
 async def get_aircraft(
-    identifier: str,
     request: Request,
+    identifier: str,
     detail: Literal["standard", "full"] = "standard",
 ):
     columns = FULL_COLUMNS if detail == "full" else STANDARD_COLUMNS
