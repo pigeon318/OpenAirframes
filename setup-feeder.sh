@@ -1,0 +1,57 @@
+#!/bin/bash
+set -e
+
+echo "OpenAirframes Feeder Setup"
+echo "=========================="
+echo
+
+read -p "Server URL (e.g., https://api.pigeite.com): " SERVER_URL
+if [ -z "$SERVER_URL" ]; then
+  echo "Error: Server URL is required"
+  exit 1
+fi
+
+read -p "Feeder name (e.g., London Station): " FEEDER_NAME
+if [ -z "$FEEDER_NAME" ]; then
+  echo "Error: Feeder name is required"
+  exit 1
+fi
+
+read -p "Location (optional, e.g., London, UK): " LOCATION
+
+echo
+echo "Setting up environment..."
+
+if [ ! -d "venv" ]; then
+  python3 -m venv venv
+fi
+
+source venv/bin/activate
+pip install -q -r requirements.txt
+
+echo "Registering feeder with server..."
+
+RESPONSE=$(curl -s -X POST "$SERVER_URL/feeders/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\": \"$FEEDER_NAME\", \"location\": $([ -z "$LOCATION" ] && echo 'null' || echo "\"$LOCATION\"")}")
+
+KEY=$(echo "$RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('key', ''))")
+
+if [ -z "$KEY" ]; then
+  echo "Error: Failed to register feeder"
+  echo "Response: $RESPONSE"
+  exit 1
+fi
+
+echo "✓ Registered successfully!"
+echo "  Feeder key: $KEY"
+echo
+
+echo "Saving config..."
+python3 scripts/feeder_client.py --server "$SERVER_URL" --key "$KEY" --save
+
+echo "✓ Config saved to feeder.json"
+echo
+
+echo "Starting feeder client..."
+python3 scripts/feeder_client.py
