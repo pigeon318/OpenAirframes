@@ -18,6 +18,26 @@ fi
 read -p "Location (optional, e.g., London, UK): " LOCATION
 
 echo
+echo "Which ADS-B software are you running?"
+echo "  1) dump1090-mutability (default)"
+echo "  2) ADSB.im / readsb"
+echo "  3) Other (enter path manually)"
+read -p "Choice [1]: " SOURCE_CHOICE
+
+case "$SOURCE_CHOICE" in
+  2) SOURCE="/run/readsb/aircraft.json" ;;
+  3)
+    read -p "Path to aircraft.json: " SOURCE
+    if [ -z "$SOURCE" ]; then
+      echo "Error: Path is required"
+      exit 1
+    fi
+    ;;
+  *) SOURCE="/run/dump1090-mutability/aircraft.json" ;;
+esac
+
+echo "Source: $SOURCE"
+echo
 echo "Setting up environment..."
 
 if [ ! -d "venv" ]; then
@@ -52,7 +72,7 @@ echo "  Feeder key: $KEY"
 echo
 
 echo "Saving config..."
-python3 scripts/feeder_client.py --server="$SERVER_URL" --key="$KEY" --save
+python3 scripts/feeder_client.py --server="$SERVER_URL" --key="$KEY" --source="$SOURCE" --save
 
 echo "✓ Config saved to feeder.json"
 echo
