@@ -94,6 +94,7 @@ FULL_COLUMNS = STANDARD_COLUMNS + [
 
 position_store: dict[str, dict] = {}
 feeder_cache: dict[str, dict] = {}
+_last_written: dict[str, float] = {}
 
 
 async def expire_positions():
@@ -105,14 +106,37 @@ async def expire_positions():
             del position_store[h]
 
 
+async def cleanup_positions(pool):
+    while True:
+        await asyncio.sleep(3600)
+        async with pool.connection() as conn:
+            await conn.execute(
+                "DELETE FROM positions WHERE ts < now() - INTERVAL '24 hours'"
+            )
+
+
+async def persist_positions(rows: list[tuple], pool):
+    if not rows:
+        return
+    async with pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.executemany(
+                "INSERT INTO positions (hex, lat, lon, alt_baro, gs, track, vert_rate)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                rows,
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     pool = AsyncConnectionPool(DATABASE_URL, open=False)
     await pool.open()
     app.state.pool = pool
-    task = asyncio.create_task(expire_positions())
+    t1 = asyncio.create_task(expire_positions())
+    t2 = asyncio.create_task(cleanup_positions(pool))
     yield
-    task.cancel()
+    t1.cancel()
+    t2.cancel()
     await pool.close()
 
 
@@ -202,6 +226,7 @@ async def feed(body: FeedPayload, request: Request):
 
     now = time.time()
     accepted = 0
+    to_persist: list[tuple] = []
 
     for ac in body.aircraft:
         hex_code = ac.get("hex", "").strip().lower()
@@ -219,15 +244,20 @@ async def feed(body: FeedPayload, request: Request):
 
         flight = (ac.get("flight") or "").strip() or None
 
+        alt_baro = ac.get("alt_baro") or ac.get("altitude")
+        gs = ac.get("gs") or ac.get("speed")
+        track = ac.get("track")
+        vert_rate = ac.get("vert_rate")
+
         position_store[hex_code] = {
             "hex": hex_code,
             "flight": flight,
             "lat": lat,
             "lon": lon,
-            "alt_baro": ac.get("alt_baro") or ac.get("altitude"),
-            "gs": ac.get("gs") or ac.get("speed"),
-            "track": ac.get("track"),
-            "vert_rate": ac.get("vert_rate"),
+            "alt_baro": alt_baro,
+            "gs": gs,
+            "track": track,
+            "vert_rate": vert_rate,
             "squawk": ac.get("squawk"),
             "category": ac.get("category"),
             "rssi": ac.get("rssi"),
@@ -235,9 +265,15 @@ async def feed(body: FeedPayload, request: Request):
             "feeder_id": feeder["id"],
             "last_seen": now - seen_pos,
         }
+
+        if now - _last_written.get(hex_code, 0) >= 10:
+            _last_written[hex_code] = now
+            to_persist.append((hex_code, lat, lon, alt_baro, gs, track, vert_rate))
+
         accepted += 1
 
     asyncio.create_task(update_feeder_stats(key, accepted, local_pool))
+    asyncio.create_task(persist_positions(to_persist, local_pool))
     return {"accepted": accepted}
 
 
@@ -250,6 +286,23 @@ async def get_stats(request: Request):
             total = (await cur.fetchone())[0]
     live = sum(1 for v in position_store.values() if time.time() - v["last_seen"] < POSITION_TTL)
     return {"total_aircraft": total, "live_aircraft": live}
+
+
+@app.get("/live/track/{hex_code}")
+async def live_track(hex_code: str, request: Request):
+    if not re.fullmatch(r"[0-9a-fA-F]{6}", hex_code):
+        raise HTTPException(status_code=400, detail="Invalid ICAO hex")
+    local_pool = request.app.state.pool
+    async with local_pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT lat, lon, alt_baro FROM positions"
+                " WHERE hex = %s AND ts > now() - INTERVAL '30 minutes'"
+                " ORDER BY ts ASC",
+                (hex_code.lower(),),
+            )
+            rows = await cur.fetchall()
+    return [{"lat": r[0], "lon": r[1], "alt": r[2]} for r in rows]
 
 
 @app.get("/live/aircraft")

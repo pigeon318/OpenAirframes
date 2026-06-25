@@ -337,6 +337,8 @@ const markers = {};
 const dbCache = {};
 let selectedHex = null;
 let listMode = false;
+let trailLine = null;
+let trailHex = null;
 
 const PLANE_SVG = (color) => `
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
@@ -380,6 +382,31 @@ function togglePanel() {
 
 function closePanel() {
   document.getElementById('side-panel').classList.remove('open');
+}
+
+async function loadTrail(hex) {
+  if (trailLine) { map.removeLayer(trailLine); trailLine = null; }
+  trailHex = hex;
+  try {
+    const r = await fetch(`/live/track/${hex}`);
+    if (!r.ok) return;
+    const pts = await r.json();
+    const live = currentAircraft.find(a => a.hex === hex);
+    if (live) pts.push({ lat: live.lat, lon: live.lon });
+    if (pts.length < 2) return;
+    trailLine = L.polyline(pts.map(p => [p.lat, p.lon]), {
+      color: '#60a5fa',
+      weight: 2,
+      opacity: 0.65,
+      smoothFactor: 1,
+    }).addTo(map);
+    trailLine.bringToBack();
+  } catch {}
+}
+
+function clearTrail() {
+  if (trailLine) { map.removeLayer(trailLine); trailLine = null; }
+  trailHex = null;
 }
 
 function showDetail(hex, live, db) {
@@ -469,6 +496,7 @@ function selectAircraft(hex) {
   const live = currentAircraft.find(a => a.hex === hex);
   if (live) showDetail(hex, live, dbCache[hex] || null);
   listMode = false;
+  loadTrail(hex);
 }
 
 let currentAircraft = [];
@@ -496,6 +524,7 @@ function updateMarkers(aircraft) {
           selectedHex = ac.hex;
           listMode = false;
           showDetail(ac.hex, ac, dbCache[ac.hex] || null);
+          loadTrail(ac.hex);
         });
       markers[ac.hex] = m;
     }
@@ -513,7 +542,15 @@ function updateMarkers(aircraft) {
   const newHexes = aircraft.map(a => a.hex).filter(h => !dbCache[h]);
   if (newHexes.length) enrichBatch(newHexes);
 
-  if (selectedHex && !seen.has(selectedHex)) selectedHex = null;
+  if (selectedHex && !seen.has(selectedHex)) {
+    selectedHex = null;
+    clearTrail();
+  }
+
+  if (trailHex && trailLine) {
+    const live = aircraft.find(a => a.hex === trailHex);
+    if (live) trailLine.addLatLng([live.lat, live.lon]);
+  }
 
   if (selectedHex) {
     const live = aircraft.find(a => a.hex === selectedHex);
