@@ -5,11 +5,9 @@ echo "OpenAirframes Feeder Setup"
 echo "=========================="
 echo
 
-read -p "Server URL (e.g., https://api.pigeite.com): " SERVER_URL
-if [ -z "$SERVER_URL" ]; then
-  echo "Error: Server URL is required"
-  exit 1
-fi
+SERVER_URL="https://api.pigeite.com"
+echo "Server: $SERVER_URL"
+echo
 
 read -p "Feeder name (e.g., London Station): " FEEDER_NAME
 if [ -z "$FEEDER_NAME" ]; then
