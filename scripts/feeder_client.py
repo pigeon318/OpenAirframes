@@ -5,7 +5,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-DEFAULT_DUMP1090 = "http://localhost:8080/data/aircraft.json"
+DEFAULT_DUMP1090 = "/run/dump1090-mutability/aircraft.json"
 DEFAULT_SERVER   = "http://localhost:8000"
 DEFAULT_INTERVAL = 2
 CONFIG_FILE      = Path(__file__).parent.parent / "feeder.json"
@@ -24,9 +24,12 @@ def save_config(cfg):
     print(f"Config saved to {CONFIG_FILE}")
 
 
-def fetch_aircraft(source_url):
-    with urllib.request.urlopen(source_url, timeout=5) as r:
-        return json.loads(r.read())
+def fetch_aircraft(source):
+    if source.startswith("http://") or source.startswith("https://"):
+        with urllib.request.urlopen(source, timeout=5) as r:
+            return json.loads(r.read())
+    with open(source) as f:
+        return json.load(f)
 
 
 def post_feed(server_url, key, aircraft):
