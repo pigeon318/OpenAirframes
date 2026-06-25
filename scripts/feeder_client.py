@@ -41,6 +41,7 @@ def post_feed(server_url, key, aircraft, debug=False):
         headers={
             "Content-Type": "application/json",
             "X-Feeder-Key": key,
+            "User-Agent": "OpenAirframes-Feeder/1.0",
         },
         method="POST",
     )
