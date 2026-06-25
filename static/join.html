@@ -4,26 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenAirframes — Join as a Feeder</title>
+<link rel="stylesheet" href="/ui/nav.css">
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: #f1f5f9;
     color: #0f172a;
     min-height: 100vh;
   }
-
-  header {
-    background: #1e293b;
-    padding: 0 2rem;
-    display: flex;
-    align-items: center;
-    height: 56px;
-    gap: 0.75rem;
-  }
-
-  header h1 { font-size: 1.1rem; font-weight: 600; color: #f8fafc; }
 
   main {
     max-width: 640px;
@@ -234,13 +222,30 @@
 <body>
 
 <header>
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M21 16l-9-4-9 4 9-4 9 4z"/>
-    <path d="M3 16l9 4 9-4"/>
-    <path d="M12 12V3"/>
-    <path d="M5 9l7-6 7 6"/>
-  </svg>
-  <h1>OpenAirframes</h1>
+  <div class="hdr">
+    <a href="/ui/" class="brand">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16l-9-4-9 4 9-4 9 4z"/>
+        <path d="M3 16l9 4 9-4"/>
+        <path d="M12 12V3"/>
+        <path d="M5 9l7-6 7 6"/>
+      </svg>
+      OpenAirframes
+    </a>
+    <nav class="nav-main">
+      <a href="/ui/map.html">Live Map</a>
+      <a href="/ui/search.html">Search</a>
+      <a href="/ui/join.html" class="active">Join as Feeder</a>
+    </nav>
+    <button class="burger" onclick="document.getElementById('mnav').classList.toggle('open')" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+  </div>
+  <nav class="nav-mob" id="mnav">
+    <a href="/ui/map.html">Live Map</a>
+    <a href="/ui/search.html">Search</a>
+    <a href="/ui/join.html" class="active">Join as Feeder</a>
+  </nav>
 </header>
 
 <main>

@@ -6,52 +6,31 @@
 <title>OpenAirframes — Live Map</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="/ui/nav.css">
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: #0f172a;
     color: #f1f5f9;
-    height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
 
-  header {
-    background: #1e293b;
-    padding: 0 1.25rem;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    height: 48px;
-    flex-shrink: 0;
+  header { flex-shrink: 0; }
+
+  .hdr {
     border-bottom: 1px solid #334155;
-    z-index: 1000;
+    height: 52px;
   }
-
-  header h1 { font-size: 1rem; font-weight: 600; color: #f8fafc; }
-
-  .nav-links { display: flex; gap: 0.25rem; margin-left: 1rem; }
-  .nav-links a {
-    font-size: 0.8rem;
-    color: #94a3b8;
-    text-decoration: none;
-    padding: 0.3rem 0.65rem;
-    border-radius: 5px;
-    transition: background 0.15s, color 0.15s;
-  }
-  .nav-links a:hover { background: #334155; color: #f1f5f9; }
-  .nav-links a.active { background: #2563eb; color: #fff; }
 
   .stats-bar {
-    margin-left: auto;
     display: flex;
     gap: 1.25rem;
     align-items: center;
     font-size: 0.78rem;
     color: #94a3b8;
+    margin-left: 1.5rem;
   }
 
   .stats-bar span strong { color: #e2e8f0; font-weight: 600; }
@@ -61,22 +40,22 @@
     border-radius: 50%;
     background: #ef4444;
     transition: background 0.3s;
+    flex-shrink: 0;
   }
+
   .status-dot.live { background: #22c55e; }
 
   .layout {
     display: flex;
     flex: 1;
     overflow: hidden;
+    position: relative;
   }
 
-  #map {
-    flex: 1;
-    background: #0f172a;
-  }
+  #map { flex: 1; background: #0f172a; }
 
   .panel {
-    width: 320px;
+    width: 300px;
     flex-shrink: 0;
     background: #1e293b;
     border-left: 1px solid #334155;
@@ -94,7 +73,22 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
+
+  .panel-close {
+    display: none;
+    background: none;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    padding: 0.1rem;
+    line-height: 0;
+  }
+
+  .panel-close:hover { color: #94a3b8; }
 
   .panel-body {
     flex: 1;
@@ -119,11 +113,7 @@
     border-bottom: 1px solid #334155;
   }
 
-  .detail-title h2 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #f1f5f9;
-  }
+  .detail-title h2 { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; }
 
   .detail-title .sub {
     font-size: 0.8rem;
@@ -151,17 +141,9 @@
     margin-bottom: 0.15rem;
   }
 
-  .lf-item p {
-    font-size: 0.85rem;
-    color: #e2e8f0;
-    font-variant-numeric: tabular-nums;
-  }
+  .lf-item p { font-size: 0.85rem; color: #e2e8f0; font-variant-numeric: tabular-nums; }
 
-  .db-fields {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.625rem;
-  }
+  .db-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.625rem; }
 
   .db-field label {
     display: block;
@@ -176,17 +158,6 @@
   .db-field p { font-size: 0.8rem; color: #cbd5e1; }
   .db-field p.empty { color: #334155; font-style: italic; }
 
-  .loading-bar {
-    height: 2px;
-    background: #2563eb;
-    width: 0%;
-    transition: width 0.3s;
-    position: absolute;
-    top: 48px;
-    left: 0;
-    z-index: 2000;
-  }
-
   .feeder-tag {
     display: inline-block;
     font-size: 0.65rem;
@@ -198,11 +169,7 @@
     font-family: monospace;
   }
 
-  .aircraft-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
+  .aircraft-list { display: flex; flex-direction: column; gap: 1px; }
 
   .aircraft-row {
     display: flex;
@@ -216,35 +183,79 @@
 
   .aircraft-row:hover { background: #334155; }
   .aircraft-row.selected { background: #1e3a5f; }
+  .aircraft-row .hex { font-family: monospace; font-size: 0.75rem; color: #60a5fa; width: 52px; flex-shrink: 0; }
+  .aircraft-row .callsign { font-size: 0.8rem; font-weight: 600; color: #e2e8f0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .aircraft-row .alt { font-size: 0.72rem; color: #64748b; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-  .aircraft-row .hex {
-    font-family: monospace;
-    font-size: 0.75rem;
-    color: #60a5fa;
-    width: 52px;
-    flex-shrink: 0;
+  .loading-bar {
+    height: 2px;
+    background: #2563eb;
+    width: 0%;
+    transition: width 0.3s;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 2000;
   }
 
-  .aircraft-row .callsign {
-    font-size: 0.8rem;
+  .panel-fab {
+    display: none;
+    position: fixed;
+    bottom: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 600;
+    background: #1e293b;
+    border: 1px solid #475569;
+    color: #f1f5f9;
+    padding: 0.55rem 1.25rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
     font-weight: 600;
-    color: #e2e8f0;
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    cursor: pointer;
+    align-items: center;
+    gap: 0.4rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     white-space: nowrap;
+    transition: background 0.15s;
   }
 
-  .aircraft-row .alt {
-    font-size: 0.72rem;
-    color: #64748b;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
+  .panel-fab:hover { background: #334155; }
+
+  .leaflet-dark-tip {
+    background: #1e293b;
+    color: #f1f5f9;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    padding: 4px 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
   }
 
-  .plane-icon {
-    transform-origin: center;
-    pointer-events: none;
+  .leaflet-dark-tip::before { display: none; }
+
+  @media (max-width: 768px) {
+    .stats-bar { display: none; }
+
+    .panel {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      height: 50vh;
+      border-left: none;
+      border-top: 1px solid #334155;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 500;
+    }
+
+    .panel.open { transform: translateY(0); }
+
+    .panel-close { display: flex; }
+
+    .panel-fab { display: flex; }
   }
 </style>
 </head>
@@ -253,29 +264,47 @@
 <div class="loading-bar" id="loading-bar"></div>
 
 <header>
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M21 16l-9-4-9 4 9-4 9 4z"/>
-    <path d="M3 16l9 4 9-4"/>
-    <path d="M12 12V3"/>
-    <path d="M5 9l7-6 7 6"/>
-  </svg>
-  <h1>OpenAirframes</h1>
-  <nav class="nav-links">
-    <a href="/ui/">Database</a>
-    <a href="/ui/map.html" class="active">Live Map</a>
-  </nav>
-  <div class="stats-bar">
-    <span><strong id="stat-aircraft">0</strong> aircraft</span>
-    <span><strong id="stat-feeders">0</strong> feeders</span>
-    <div class="status-dot" id="status-dot" title="Connecting..."></div>
+  <div class="hdr">
+    <a href="/ui/" class="brand">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16l-9-4-9 4 9-4 9 4z"/>
+        <path d="M3 16l9 4 9-4"/>
+        <path d="M12 12V3"/>
+        <path d="M5 9l7-6 7 6"/>
+      </svg>
+      OpenAirframes
+    </a>
+    <nav class="nav-main">
+      <a href="/ui/map.html" class="active">Live Map</a>
+      <a href="/ui/search.html">Search</a>
+      <a href="/ui/join.html">Join as Feeder</a>
+    </nav>
+    <div class="stats-bar">
+      <span><strong id="stat-aircraft">0</strong> aircraft</span>
+      <span><strong id="stat-feeders">0</strong> feeders</span>
+      <div class="status-dot" id="status-dot" title="Connecting..."></div>
+    </div>
+    <button class="burger" onclick="document.getElementById('mnav').classList.toggle('open')" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
   </div>
+  <nav class="nav-mob" id="mnav">
+    <a href="/ui/map.html" class="active">Live Map</a>
+    <a href="/ui/search.html">Search</a>
+    <a href="/ui/join.html">Join as Feeder</a>
+  </nav>
 </header>
 
 <div class="layout">
   <div id="map"></div>
 
-  <div class="panel">
-    <div class="panel-header" id="panel-title">Aircraft</div>
+  <div class="panel" id="side-panel">
+    <div class="panel-header">
+      <span id="panel-title">Aircraft</span>
+      <button class="panel-close" onclick="closePanel()" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
     <div class="panel-body" id="panel-body">
       <div class="empty-state">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
@@ -284,6 +313,11 @@
     </div>
   </div>
 </div>
+
+<button class="panel-fab" id="panel-fab" onclick="togglePanel()">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+  <span id="fab-label">Aircraft</span>
+</button>
 
 <script>
 const map = L.map('map', {
@@ -340,6 +374,14 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+function togglePanel() {
+  document.getElementById('side-panel').classList.toggle('open');
+}
+
+function closePanel() {
+  document.getElementById('side-panel').classList.remove('open');
+}
+
 function showDetail(hex, live, db) {
   selectedHex = hex;
   document.querySelectorAll('.aircraft-row').forEach(r => {
@@ -363,7 +405,6 @@ function showDetail(hex, live, db) {
       <div class="sub">${esc(sub)}</div>
       ${live.feeder ? `<span class="feeder-tag">${esc(live.feeder)}</span>` : ''}
     </div>
-
     <div class="live-fields">
       <div class="lf-item"><label>Altitude</label><p>${fmt(live.alt_baro, ' ft')}</p></div>
       <div class="lf-item"><label>Speed</label><p>${fmt(live.gs, ' kts')}</p></div>
@@ -372,7 +413,6 @@ function showDetail(hex, live, db) {
       <div class="lf-item"><label>Squawk</label><p>${fmt(live.squawk)}</p></div>
       <div class="lf-item"><label>Category</label><p>${fmt(live.category)}</p></div>
     </div>
-
     ${db ? `<div class="db-fields">
       ${[
         ['Registration', db.registration],
@@ -394,11 +434,18 @@ function showDetail(hex, live, db) {
       <p style="font-size:0.8rem;color:#475569;">Not in database</p>
     </div>`}
   `;
+
+  if (window.innerWidth <= 768) {
+    document.getElementById('side-panel').classList.add('open');
+  }
 }
 
 function showList(aircraft) {
   listMode = true;
-  document.getElementById('panel-title').textContent = `Aircraft (${aircraft.length})`;
+  const count = aircraft.length;
+  document.getElementById('panel-title').textContent = `Aircraft (${count})`;
+  document.getElementById('fab-label').textContent = `${count} aircraft`;
+
   const rows = aircraft
     .sort((a, b) => (b.alt_baro || 0) - (a.alt_baro || 0))
     .map(ac => {
@@ -412,14 +459,13 @@ function showList(aircraft) {
         <span class="alt">${ac.alt_baro != null ? ac.alt_baro.toLocaleString() + ' ft' : '—'}</span>
       </div>`;
     }).join('');
-  document.getElementById('panel-body').innerHTML = `<div class="aircraft-list">${rows}</div>`;
+
+  document.getElementById('panel-body').innerHTML = `<div class="aircraft-list">${rows || '<div class="empty-state">No aircraft in range</div>'}</div>`;
 }
 
 function selectAircraft(hex) {
   const marker = markers[hex];
-  if (marker) {
-    map.setView(marker.getLatLng(), Math.max(map.getZoom(), 9));
-  }
+  if (marker) map.setView(marker.getLatLng(), Math.max(map.getZoom(), 9));
   const live = currentAircraft.find(a => a.hex === hex);
   if (live) showDetail(hex, live, dbCache[hex] || null);
   listMode = false;
@@ -467,9 +513,7 @@ function updateMarkers(aircraft) {
   const newHexes = aircraft.map(a => a.hex).filter(h => !dbCache[h]);
   if (newHexes.length) enrichBatch(newHexes);
 
-  if (selectedHex && !seen.has(selectedHex)) {
-    selectedHex = null;
-  }
+  if (selectedHex && !seen.has(selectedHex)) selectedHex = null;
 
   if (selectedHex) {
     const live = aircraft.find(a => a.hex === selectedHex);
@@ -492,9 +536,7 @@ async function enrichBatch(hexes) {
         body: JSON.stringify({ identifiers: chunk }),
       });
       const data = await r.json();
-      for (const [hex, info] of Object.entries(data)) {
-        dbCache[hex] = info;
-      }
+      for (const [hex, info] of Object.entries(data)) dbCache[hex] = info;
     } catch {}
   }
 }

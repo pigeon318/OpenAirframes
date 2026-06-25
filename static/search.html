@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenAirframes — Search</title>
+<link rel="stylesheet" href="/ui/nav.css">
+<style>
+  body { background: #f1f5f9; min-height: 100vh; }
+
+  main {
+    max-width: 1100px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+  }
+
+  .tabs {
+    display: flex;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 1.5rem;
+  }
+
+  .tab {
+    padding: 0.6rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: #64748b;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+  .tab:hover:not(.active) { color: #1e293b; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .card {
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 0.875rem;
+    margin-bottom: 1rem;
+  }
+
+  .field label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.35rem;
+  }
+
+  .field input, .field select {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    color: #0f172a;
+    background: #fff;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .field input:focus, .field select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1.1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background 0.15s, opacity 0.15s;
+  }
+
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .btn-ghost { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+  .btn-ghost:hover { background: #e2e8f0; }
+
+  .per-page {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .per-page select {
+    width: 70px;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.8rem;
+  }
+
+  .lookup-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .lookup-row .field { flex: 1; min-width: 200px; }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem 0.875rem;
+  }
+
+  .results-header h2 { font-size: 0.9rem; font-weight: 600; color: #374151; }
+
+  .badge {
+    font-size: 0.75rem;
+    background: #dbeafe;
+    color: #1d4ed8;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 500;
+  }
+
+  .table-wrap { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+
+  thead th {
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+  }
+
+  tbody tr { border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.1s; }
+  tbody tr:hover { background: #f8fafc; }
+  tbody tr:last-child { border-bottom: none; }
+
+  tbody td { padding: 0.65rem 0.75rem; color: #1e293b; vertical-align: middle; }
+
+  .mono { font-family: "SF Mono", "Fira Code", monospace; font-size: 0.8rem; }
+
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 500; }
+  .pill-green { background: #dcfce7; color: #15803d; }
+  .pill-gray  { background: #f1f5f9; color: #64748b; }
+  .pill-red   { background: #fee2e2; color: #b91c1c; }
+
+  .detail-card {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.875rem;
+  }
+
+  .detail-field label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+    margin-bottom: 0.2rem;
+  }
+
+  .detail-field p { font-size: 0.875rem; color: #0f172a; word-break: break-word; }
+  .detail-field p.empty { color: #cbd5e1; font-style: italic; }
+
+  .detail-title {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    flex-wrap: wrap;
+  }
+
+  .detail-title h2 { font-size: 1.2rem; font-weight: 700; }
+  .detail-title .reg { font-family: "SF Mono", "Fira Code", monospace; font-size: 0.85rem; color: #64748b; }
+
+  .state-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 2.5rem 1rem;
+    color: #94a3b8;
+    font-size: 0.875rem;
+  }
+
+  .state-box svg { opacity: 0.4; }
+
+  .error-box {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 0.875rem 1rem;
+    font-size: 0.875rem;
+    color: #b91c1c;
+  }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    padding: 0.75rem 1.25rem;
+  }
+
+  .pagination span { font-size: 0.8rem; color: #64748b; }
+
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid #e2e8f0;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 2rem auto;
+    display: block;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 640px) {
+    main { margin: 1.25rem auto; padding: 0 1rem; }
+    .per-page { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr">
+    <a href="/ui/" class="brand">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16l-9-4-9 4 9-4 9 4z"/>
+        <path d="M3 16l9 4 9-4"/>
+        <path d="M12 12V3"/>
+        <path d="M5 9l7-6 7 6"/>
+      </svg>
+      OpenAirframes
+    </a>
+    <nav class="nav-main">
+      <a href="/ui/map.html">Live Map</a>
+      <a href="/ui/search.html" class="active">Search</a>
+      <a href="/ui/join.html">Join as Feeder</a>
+    </nav>
+    <button class="burger" onclick="document.getElementById('mnav').classList.toggle('open')" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+  </div>
+  <nav class="nav-mob" id="mnav">
+    <a href="/ui/map.html">Live Map</a>
+    <a href="/ui/search.html" class="active">Search</a>
+    <a href="/ui/join.html">Join as Feeder</a>
+  </nav>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('search')">Search</button>
+    <button class="tab" onclick="switchTab('lookup')">Lookup</button>
+  </div>
+
+  <div id="panel-search" class="panel active">
+    <div class="card">
+      <div class="form-grid">
+        <div class="field">
+          <label>Manufacturer</label>
+          <input id="s-manufacturer" type="text" placeholder="e.g. Cessna">
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <input id="s-model" type="text" placeholder="e.g. 172">
+        </div>
+        <div class="field">
+          <label>Owner Name</label>
+          <input id="s-owner" type="text" placeholder="e.g. Delta Air">
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="s-status">
+            <option value="">Any</option>
+            <option>Valid</option>
+            <option>Expired</option>
+            <option>Cancelled</option>
+            <option>Revoked</option>
+            <option>Terminated</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select id="s-category">
+            <option value="">Any</option>
+            <option>Land</option>
+            <option>Sea</option>
+            <option>Amphibian</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select id="s-type">
+            <option value="">Any</option>
+            <option>Fixed Wing Single Engine</option>
+            <option>Fixed Wing Multi Engine</option>
+            <option>Rotorcraft</option>
+            <option>Glider</option>
+            <option>Balloon</option>
+            <option>Blimp/Dirigible</option>
+            <option>Powered Lift</option>
+            <option>Gyroplane</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="runSearch(1)">Search</button>
+        <button class="btn btn-ghost" onclick="clearSearch()">Clear</button>
+        <div class="per-page">
+          Per page
+          <select id="s-limit">
+            <option>25</option>
+            <option selected>50</option>
+            <option>100</option>
+            <option>200</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="search-results"></div>
+  </div>
+
+  <div id="panel-lookup" class="panel">
+    <div class="card">
+      <div class="lookup-row">
+        <div class="field">
+          <label>ICAO Hex or Registration</label>
+          <input id="l-ident" type="text" placeholder="e.g. 400F7C or N172SP or G-ABCD" onkeydown="if(event.key==='Enter') runLookup()">
+        </div>
+        <button class="btn btn-primary" onclick="runLookup()">Look up</button>
+      </div>
+    </div>
+    <div id="lookup-result"></div>
+  </div>
+</main>
+
+<script>
+  let currentPage = 1;
+
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['search','lookup'][i] === name));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + name).classList.add('active');
+  }
+
+  function statusPill(s) {
+    if (!s) return '<span class="pill pill-gray">—</span>';
+    const cls = s === 'Valid' ? 'pill-green' : (s === 'Expired' || s === 'Cancelled') ? 'pill-red' : 'pill-gray';
+    return `<span class="pill ${cls}">${esc(s)}</span>`;
+  }
+
+  function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  async function runSearch(page) {
+    currentPage = page;
+    const limit = parseInt(document.getElementById('s-limit').value);
+    const offset = (page - 1) * limit;
+
+    const params = {};
+    const mfr = document.getElementById('s-manufacturer').value.trim();
+    const mdl = document.getElementById('s-model').value.trim();
+    const own = document.getElementById('s-owner').value.trim();
+    const sta = document.getElementById('s-status').value;
+    const cat = document.getElementById('s-category').value;
+    const typ = document.getElementById('s-type').value;
+
+    if (mfr) params.manufacturer = mfr;
+    if (mdl) params.model = mdl;
+    if (own) params.owner_name = own;
+    if (sta) params.status = sta;
+    if (cat) params.aircraft_category = cat;
+    if (typ) params.type_aircraft = typ;
+
+    if (!Object.keys(params).length) {
+      document.getElementById('search-results').innerHTML = '<div class="error-box">Enter at least one filter to search.</div>';
+      return;
+    }
+
+    params.limit = limit;
+    params.offset = offset;
+
+    const el = document.getElementById('search-results');
+    el.innerHTML = '<span class="spinner"></span>';
+
+    let data;
+    try {
+      const r = await fetch('/aircraft?' + new URLSearchParams(params));
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText); }
+      data = await r.json();
+    } catch(e) {
+      el.innerHTML = `<div class="error-box">${esc(e.message)}</div>`;
+      return;
+    }
+
+    if (!data.length) {
+      el.innerHTML = `<div class="card"><div class="state-box">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        No aircraft matched your filters.
+      </div></div>`;
+      return;
+    }
+
+    const rows = data.map(a => `
+      <tr onclick="showDetail(${JSON.stringify(JSON.stringify(a))})">
+        <td class="mono">${esc(a.icao_hex)}</td>
+        <td class="mono">${esc(a.registration) || '<span style="color:#cbd5e1">—</span>'}</td>
+        <td>${esc(a.manufacturer) || '—'}</td>
+        <td>${esc(a.model) || '—'}</td>
+        <td>${esc(a.type_aircraft) || '—'}</td>
+        <td>${a.year_manufactured || '—'}</td>
+        <td>${statusPill(a.status)}</td>
+        <td>${esc(a.owner_name) || '—'}</td>
+        <td>${[a.owner_city, a.owner_state, a.owner_country].filter(Boolean).map(esc).join(', ') || '—'}</td>
+      </tr>`).join('');
+
+    el.innerHTML = `
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div class="results-header">
+          <h2>Results</h2>
+          <span class="badge">${data.length} shown</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>ICAO</th><th>Registration</th><th>Manufacturer</th><th>Model</th>
+              <th>Type</th><th>Year</th><th>Status</th><th>Owner</th><th>Location</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span>Page ${page}</span>
+          <button class="btn btn-ghost" ${page <= 1 ? 'disabled' : ''} onclick="runSearch(${page - 1})">Previous</button>
+          <button class="btn btn-ghost" ${data.length < limit ? 'disabled' : ''} onclick="runSearch(${page + 1})">Next</button>
+        </div>
+      </div>
+      <div id="row-detail"></div>`;
+  }
+
+  function showDetail(jsonStr) {
+    const a = JSON.parse(jsonStr);
+    const el = document.getElementById('row-detail');
+
+    const fields = [
+      ['ICAO Hex', a.icao_hex, true], ['Registration', a.registration, true],
+      ['Manufacturer', a.manufacturer], ['Model', a.model],
+      ['Type', a.type_aircraft], ['Engine Type', a.type_engine],
+      ['Engines', a.engine_count], ['Seats', a.seats],
+      ['Year', a.year_manufactured], ['Category', a.aircraft_category],
+      ['Weight Class', a.weight_class], ['Status', a.status],
+      ['Certification', a.certification], ['Owner', a.owner_name],
+      ['Owner Type', a.owner_type], ['City', a.owner_city],
+      ['State', a.owner_state], ['Country', a.owner_country], ['Source', a.source],
+    ];
+
+    const cards = fields.map(([label, value, mono]) => {
+      const display = value != null ? `<p class="${mono ? 'mono' : ''}">${esc(String(value))}</p>` : '<p class="empty">—</p>';
+      return `<div class="detail-field"><label>${esc(label)}</label>${display}</div>`;
+    }).join('');
+
+    const title = [a.manufacturer, a.model].filter(Boolean).join(' ') || a.icao_hex;
+
+    el.innerHTML = `
+      <div class="card" style="margin-top:0.75rem;">
+        <div class="detail-title">
+          <h2>${esc(title)}</h2>
+          ${a.registration ? `<span class="reg">${esc(a.registration)}</span>` : ''}
+          ${statusPill(a.status)}
+        </div>
+        <div class="detail-card">${cards}</div>
+      </div>`;
+
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function runLookup() {
+    const ident = document.getElementById('l-ident').value.trim();
+    const el = document.getElementById('lookup-result');
+
+    if (!ident) {
+      el.innerHTML = '<div class="error-box">Enter an ICAO hex code or registration.</div>';
+      return;
+    }
+
+    el.innerHTML = '<span class="spinner"></span>';
+
+    let data;
+    try {
+      const r = await fetch('/aircraft/' + encodeURIComponent(ident));
+      if (r.status === 404) {
+        el.innerHTML = `<div class="card"><div class="state-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          No aircraft found for <strong>${esc(ident)}</strong>.
+        </div></div>`;
+        return;
+      }
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText); }
+      data = await r.json();
+    } catch(e) {
+      el.innerHTML = `<div class="error-box">${esc(e.message)}</div>`;
+      return;
+    }
+
+    const fields = [
+      ['ICAO Hex', data.icao_hex, true], ['Registration', data.registration, true],
+      ['Manufacturer', data.manufacturer], ['Model', data.model],
+      ['Type', data.type_aircraft], ['Engine Type', data.type_engine],
+      ['Engines', data.engine_count], ['Seats', data.seats],
+      ['Year', data.year_manufactured], ['Category', data.aircraft_category],
+      ['Weight Class', data.weight_class], ['Status', data.status],
+      ['Certification', data.certification], ['Owner', data.owner_name],
+      ['Owner Type', data.owner_type], ['City', data.owner_city],
+      ['State', data.owner_state], ['Country', data.owner_country], ['Source', data.source],
+    ];
+
+    const cards = fields.map(([label, value, mono]) => {
+      const display = value != null ? `<p class="${mono ? 'mono' : ''}">${esc(String(value))}</p>` : '<p class="empty">—</p>';
+      return `<div class="detail-field"><label>${esc(label)}</label>${display}</div>`;
+    }).join('');
+
+    const title = [data.manufacturer, data.model].filter(Boolean).join(' ') || data.icao_hex;
+
+    el.innerHTML = `
+      <div class="card">
+        <div class="detail-title">
+          <h2>${esc(title)}</h2>
+          ${data.registration ? `<span class="reg">${esc(data.registration)}</span>` : ''}
+          ${statusPill(data.status)}
+        </div>
+        <div class="detail-card">${cards}</div>
+      </div>`;
+  }
+
+  function clearSearch() {
+    ['s-manufacturer','s-model','s-owner'].forEach(id => document.getElementById(id).value = '');
+    ['s-status','s-category','s-type'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('search-results').innerHTML = '';
+  }
+</script>
+</body>
+</html>

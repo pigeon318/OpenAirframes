@@ -241,6 +241,17 @@ async def feed(body: FeedPayload, request: Request):
     return {"accepted": accepted}
 
 
+@app.get("/stats")
+async def get_stats(request: Request):
+    local_pool = request.app.state.pool
+    async with local_pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT COUNT(*) FROM aircraft")
+            total = (await cur.fetchone())[0]
+    live = sum(1 for v in position_store.values() if time.time() - v["last_seen"] < POSITION_TTL)
+    return {"total_aircraft": total, "live_aircraft": live}
+
+
 @app.get("/live/aircraft")
 async def live_aircraft():
     now = time.time()
