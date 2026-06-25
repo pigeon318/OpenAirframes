@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenAirframes — Live Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f172a;
+    color: #f1f5f9;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    background: #1e293b;
+    padding: 0 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    height: 48px;
+    flex-shrink: 0;
+    border-bottom: 1px solid #334155;
+    z-index: 1000;
+  }
+
+  header h1 { font-size: 1rem; font-weight: 600; color: #f8fafc; }
+
+  .nav-links { display: flex; gap: 0.25rem; margin-left: 1rem; }
+  .nav-links a {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    text-decoration: none;
+    padding: 0.3rem 0.65rem;
+    border-radius: 5px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-links a:hover { background: #334155; color: #f1f5f9; }
+  .nav-links a.active { background: #2563eb; color: #fff; }
+
+  .stats-bar {
+    margin-left: auto;
+    display: flex;
+    gap: 1.25rem;
+    align-items: center;
+    font-size: 0.78rem;
+    color: #94a3b8;
+  }
+
+  .stats-bar span strong { color: #e2e8f0; font-weight: 600; }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #ef4444;
+    transition: background 0.3s;
+  }
+  .status-dot.live { background: #22c55e; }
+
+  .layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  #map {
+    flex: 1;
+    background: #0f172a;
+  }
+
+  .panel {
+    width: 320px;
+    flex-shrink: 0;
+    background: #1e293b;
+    border-left: 1px solid #334155;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid #334155;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 2rem 1rem;
+    color: #475569;
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
+  .detail-title {
+    margin-bottom: 1rem;
+    padding-bottom: 0.875rem;
+    border-bottom: 1px solid #334155;
+  }
+
+  .detail-title h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #f1f5f9;
+  }
+
+  .detail-title .sub {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 0.15rem;
+    font-family: "SF Mono", "Fira Code", monospace;
+  }
+
+  .live-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.625rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #334155;
+  }
+
+  .lf-item label {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #475569;
+    margin-bottom: 0.15rem;
+  }
+
+  .lf-item p {
+    font-size: 0.85rem;
+    color: #e2e8f0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .db-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.625rem;
+  }
+
+  .db-field label {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #475569;
+    margin-bottom: 0.15rem;
+  }
+
+  .db-field p { font-size: 0.8rem; color: #cbd5e1; }
+  .db-field p.empty { color: #334155; font-style: italic; }
+
+  .loading-bar {
+    height: 2px;
+    background: #2563eb;
+    width: 0%;
+    transition: width 0.3s;
+    position: absolute;
+    top: 48px;
+    left: 0;
+    z-index: 2000;
+  }
+
+  .feeder-tag {
+    display: inline-block;
+    font-size: 0.65rem;
+    background: #1e3a5f;
+    color: #60a5fa;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 0.4rem;
+    font-family: monospace;
+  }
+
+  .aircraft-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .aircraft-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.625rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  .aircraft-row:hover { background: #334155; }
+  .aircraft-row.selected { background: #1e3a5f; }
+
+  .aircraft-row .hex {
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: #60a5fa;
+    width: 52px;
+    flex-shrink: 0;
+  }
+
+  .aircraft-row .callsign {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .aircraft-row .alt {
+    font-size: 0.72rem;
+    color: #64748b;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .plane-icon {
+    transform-origin: center;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-bar" id="loading-bar"></div>
+
+<header>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 16l-9-4-9 4 9-4 9 4z"/>
+    <path d="M3 16l9 4 9-4"/>
+    <path d="M12 12V3"/>
+    <path d="M5 9l7-6 7 6"/>
+  </svg>
+  <h1>OpenAirframes</h1>
+  <nav class="nav-links">
+    <a href="/ui/">Database</a>
+    <a href="/ui/map.html" class="active">Live Map</a>
+  </nav>
+  <div class="stats-bar">
+    <span><strong id="stat-aircraft">0</strong> aircraft</span>
+    <span><strong id="stat-feeders">0</strong> feeders</span>
+    <div class="status-dot" id="status-dot" title="Connecting..."></div>
+  </div>
+</header>
+
+<div class="layout">
+  <div id="map"></div>
+
+  <div class="panel">
+    <div class="panel-header" id="panel-title">Aircraft</div>
+    <div class="panel-body" id="panel-body">
+      <div class="empty-state">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        Waiting for live data…
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const map = L.map('map', {
+  center: [51.5, -0.1],
+  zoom: 6,
+  zoomControl: true,
+  attributionControl: true,
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CartoDB',
+  subdomains: 'abcd',
+  maxZoom: 19,
+}).addTo(map);
+
+const markers = {};
+const dbCache = {};
+let selectedHex = null;
+let listMode = false;
+
+const PLANE_SVG = (color) => `
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <path fill="${color}" stroke="#0f172a" stroke-width="1"
+    d="M16 2 L19 14 L30 18 L19 20 L21 28 L16 25 L11 28 L13 20 L2 18 L13 14 Z"/>
+</svg>`;
+
+function makeIcon(track, color) {
+  const angle = track != null ? track : 0;
+  return L.divIcon({
+    html: `<div style="transform:rotate(${angle}deg);width:32px;height:32px;">${PLANE_SVG(color)}</div>`,
+    className: '',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
+  });
+}
+
+function altColor(alt) {
+  if (alt == null) return '#94a3b8';
+  if (alt > 35000) return '#a78bfa';
+  if (alt > 20000) return '#60a5fa';
+  if (alt > 10000) return '#34d399';
+  if (alt > 3000)  return '#fbbf24';
+  return '#f87171';
+}
+
+function fmt(v, suffix) {
+  if (v == null) return '—';
+  return v + (suffix || '');
+}
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showDetail(hex, live, db) {
+  selectedHex = hex;
+  document.querySelectorAll('.aircraft-row').forEach(r => {
+    r.classList.toggle('selected', r.dataset.hex === hex);
+  });
+
+  const title = (db && (db.manufacturer || db.model))
+    ? [db.manufacturer, db.model].filter(Boolean).join(' ')
+    : (live.flight || hex.toUpperCase());
+
+  const sub = [
+    live.flight && live.flight !== title ? live.flight : null,
+    db ? db.registration : null,
+    hex.toUpperCase(),
+  ].filter(Boolean).join(' · ');
+
+  document.getElementById('panel-title').textContent = 'Aircraft Detail';
+  document.getElementById('panel-body').innerHTML = `
+    <div class="detail-title">
+      <h2>${esc(title)}</h2>
+      <div class="sub">${esc(sub)}</div>
+      ${live.feeder ? `<span class="feeder-tag">${esc(live.feeder)}</span>` : ''}
+    </div>
+
+    <div class="live-fields">
+      <div class="lf-item"><label>Altitude</label><p>${fmt(live.alt_baro, ' ft')}</p></div>
+      <div class="lf-item"><label>Speed</label><p>${fmt(live.gs, ' kts')}</p></div>
+      <div class="lf-item"><label>Track</label><p>${fmt(live.track, '°')}</p></div>
+      <div class="lf-item"><label>Vert Rate</label><p>${fmt(live.vert_rate, ' fpm')}</p></div>
+      <div class="lf-item"><label>Squawk</label><p>${fmt(live.squawk)}</p></div>
+      <div class="lf-item"><label>Category</label><p>${fmt(live.category)}</p></div>
+    </div>
+
+    ${db ? `<div class="db-fields">
+      ${[
+        ['Registration', db.registration],
+        ['Type', db.type_aircraft],
+        ['Engine', db.type_engine],
+        ['Engines', db.engine_count],
+        ['Seats', db.seats],
+        ['Year', db.year_manufactured],
+        ['Owner', db.owner_name],
+        ['Status', db.status],
+        ['Country', db.owner_country],
+        ['Source', db.source],
+      ].map(([label, val]) => `
+        <div class="db-field">
+          <label>${esc(label)}</label>
+          <p class="${val == null ? 'empty' : ''}">${val != null ? esc(String(val)) : '—'}</p>
+        </div>`).join('')}
+    </div>` : `<div class="empty-state" style="padding:1rem 0;">
+      <p style="font-size:0.8rem;color:#475569;">Not in database</p>
+    </div>`}
+  `;
+}
+
+function showList(aircraft) {
+  listMode = true;
+  document.getElementById('panel-title').textContent = `Aircraft (${aircraft.length})`;
+  const rows = aircraft
+    .sort((a, b) => (b.alt_baro || 0) - (a.alt_baro || 0))
+    .map(ac => {
+      const db = dbCache[ac.hex];
+      const label = ac.flight || (db && db.registration) || ac.hex.toUpperCase();
+      return `<div class="aircraft-row${ac.hex === selectedHex ? ' selected' : ''}"
+                   data-hex="${esc(ac.hex)}"
+                   onclick="selectAircraft('${esc(ac.hex)}')">
+        <span class="hex">${esc(ac.hex.toUpperCase())}</span>
+        <span class="callsign">${esc(label)}</span>
+        <span class="alt">${ac.alt_baro != null ? ac.alt_baro.toLocaleString() + ' ft' : '—'}</span>
+      </div>`;
+    }).join('');
+  document.getElementById('panel-body').innerHTML = `<div class="aircraft-list">${rows}</div>`;
+}
+
+function selectAircraft(hex) {
+  const marker = markers[hex];
+  if (marker) {
+    map.setView(marker.getLatLng(), Math.max(map.getZoom(), 9));
+  }
+  const live = currentAircraft.find(a => a.hex === hex);
+  if (live) showDetail(hex, live, dbCache[hex] || null);
+  listMode = false;
+}
+
+let currentAircraft = [];
+
+function updateMarkers(aircraft) {
+  currentAircraft = aircraft;
+  const seen = new Set();
+
+  for (const ac of aircraft) {
+    seen.add(ac.hex);
+    const color = altColor(ac.alt_baro);
+    const icon = makeIcon(ac.track, color);
+    const db = dbCache[ac.hex];
+    const label = ac.flight || (db && db.registration) || ac.hex.toUpperCase();
+    const tooltipHtml = `<strong>${label}</strong><br>${ac.alt_baro != null ? ac.alt_baro.toLocaleString() + ' ft' : ''}`;
+
+    if (markers[ac.hex]) {
+      markers[ac.hex].setLatLng([ac.lat, ac.lon]).setIcon(icon);
+      markers[ac.hex].getTooltip()?.setContent(tooltipHtml);
+    } else {
+      const m = L.marker([ac.lat, ac.lon], { icon })
+        .addTo(map)
+        .bindTooltip(tooltipHtml, { permanent: false, direction: 'top', className: 'leaflet-dark-tip' })
+        .on('click', () => {
+          selectedHex = ac.hex;
+          listMode = false;
+          showDetail(ac.hex, ac, dbCache[ac.hex] || null);
+        });
+      markers[ac.hex] = m;
+    }
+  }
+
+  for (const hex of Object.keys(markers)) {
+    if (!seen.has(hex)) {
+      map.removeLayer(markers[hex]);
+      delete markers[hex];
+    }
+  }
+
+  document.getElementById('stat-aircraft').textContent = aircraft.length;
+
+  const newHexes = aircraft.map(a => a.hex).filter(h => !dbCache[h]);
+  if (newHexes.length) enrichBatch(newHexes);
+
+  if (selectedHex && !seen.has(selectedHex)) {
+    selectedHex = null;
+  }
+
+  if (selectedHex) {
+    const live = aircraft.find(a => a.hex === selectedHex);
+    if (live && !listMode) showDetail(selectedHex, live, dbCache[selectedHex] || null);
+  } else if (!listMode && aircraft.length > 0) {
+    showList(aircraft);
+  } else if (listMode) {
+    showList(aircraft);
+  }
+}
+
+async function enrichBatch(hexes) {
+  const chunks = [];
+  for (let i = 0; i < hexes.length; i += 100) chunks.push(hexes.slice(i, i + 100));
+  for (const chunk of chunks) {
+    try {
+      const r = await fetch('/aircraft/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifiers: chunk }),
+      });
+      const data = await r.json();
+      for (const [hex, info] of Object.entries(data)) {
+        dbCache[hex] = info;
+      }
+    } catch {}
+  }
+}
+
+async function updateFeederCount() {
+  try {
+    const r = await fetch('/live/feeders');
+    const data = await r.json();
+    document.getElementById('stat-feeders').textContent = data.length;
+  } catch {}
+}
+
+function connect() {
+  const dot = document.getElementById('status-dot');
+  dot.classList.remove('live');
+
+  const es = new EventSource('/live/stream');
+
+  es.onopen = () => {
+    dot.classList.add('live');
+    dot.title = 'Connected';
+  };
+
+  es.onmessage = (e) => {
+    const aircraft = JSON.parse(e.data);
+    updateMarkers(aircraft);
+  };
+
+  es.onerror = () => {
+    dot.classList.remove('live');
+    dot.title = 'Reconnecting…';
+    es.close();
+    setTimeout(connect, 3000);
+  };
+}
+
+connect();
+setInterval(updateFeederCount, 30000);
+updateFeederCount();
+
+fetch('/live/aircraft')
+  .then(r => r.json())
+  .then(data => updateMarkers(data))
+  .catch(() => {});
+</script>
+</body>
+</html>
