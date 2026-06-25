@@ -52,7 +52,7 @@ echo "  Feeder key: $KEY"
 echo
 
 echo "Saving config..."
-python3 scripts/feeder_client.py --server "$SERVER_URL" --key "$KEY" --save
+python3 scripts/feeder_client.py --server="$SERVER_URL" --key="$KEY" --save
 
 echo "✓ Config saved to feeder.json"
 echo
