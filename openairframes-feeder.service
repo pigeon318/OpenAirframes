@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenAirframes feeder client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/openairframes
+ExecStart=/usr/bin/python3 /home/pi/openairframes/scripts/feeder_client.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
