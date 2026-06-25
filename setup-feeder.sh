@@ -57,5 +57,15 @@ python3 scripts/feeder_client.py --server="$SERVER_URL" --key="$KEY" --save
 echo "✓ Config saved to feeder.json"
 echo
 
-echo "Starting feeder client..."
-python3 scripts/feeder_client.py
+echo "Setting up systemd service for auto-start..."
+sudo cp openairframes-feeder.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable openairframes-feeder
+sudo systemctl start openairframes-feeder
+
+echo "✓ Service installed and started!"
+echo
+echo "Check status with: sudo systemctl status openairframes-feeder"
+echo "View logs with: sudo journalctl -u openairframes-feeder -f"
+echo
+echo "Feeder is now running in the background."
