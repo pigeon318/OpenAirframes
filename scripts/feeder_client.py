@@ -32,10 +32,11 @@ def fetch_aircraft(source):
         return json.load(f)
 
 
-def post_feed(server_url, key, aircraft):
-    body = json.dumps({"aircraft": aircraft}).encode()
+def post_feed(server_url, key, aircraft, debug=False):
+    url = f"{server_url.rstrip('/')}/feed"
+    body = json.dumps({"aircraft": aircraft, "key": key}).encode()
     req = urllib.request.Request(
-        f"{server_url.rstrip('/')}/feed",
+        url,
         data=body,
         headers={
             "Content-Type": "application/json",
@@ -43,15 +44,30 @@ def post_feed(server_url, key, aircraft):
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=10) as r:
-        return json.loads(r.read())
+    if debug:
+        print(f"\n  -> POST {url}", flush=True)
+        print(f"  -> X-Feeder-Key: {key[:8]}...{key[-4:]}", flush=True)
+        print(f"  -> body key field: {key[:8]}...{key[-4:]}", flush=True)
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            raw = r.read()
+            if debug:
+                print(f"  <- {r.status} {raw[:200]}", flush=True)
+            return json.loads(raw)
+    except urllib.error.HTTPError as e:
+        raw = e.read()
+        if debug:
+            print(f"  <- {e.code} {raw[:500]}", flush=True)
+        raise
 
 
-def run(server_url, key, source_url, interval):
+def run(server_url, key, source_url, interval, debug=False):
     print(f"OpenAirframes feeder client starting")
     print(f"  source:   {source_url}")
     print(f"  server:   {server_url}")
     print(f"  interval: {interval}s")
+    if debug:
+        print(f"  key:      {key[:8]}...{key[-4:]}")
     print()
 
     total_sent = 0
@@ -64,7 +80,7 @@ def run(server_url, key, source_url, interval):
             data = fetch_aircraft(source_url)
             aircraft = data.get("aircraft", [])
 
-            result = post_feed(server_url, key, aircraft)
+            result = post_feed(server_url, key, aircraft, debug=debug)
             accepted = result.get("accepted", 0)
             total_sent += len(aircraft)
             total_accepted += accepted
@@ -103,6 +119,7 @@ def main():
     parser.add_argument("--source",   default=cfg.get("source",   DEFAULT_DUMP1090))
     parser.add_argument("--interval", default=cfg.get("interval", DEFAULT_INTERVAL), type=float)
     parser.add_argument("--save",     action="store_true", help="Save these settings for next time")
+    parser.add_argument("--debug",    action="store_true", help="Print request/response detail")
     args = parser.parse_args()
 
     if not args.key:
@@ -117,7 +134,7 @@ def main():
             "interval": args.interval,
         })
 
-    run(args.server, args.key, args.source, args.interval)
+    run(args.server, args.key, args.source, args.interval, debug=args.debug)
 
 
 if __name__ == "__main__":

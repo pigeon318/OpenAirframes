@@ -63,6 +63,7 @@ class BulkRequest(BaseModel):
 
 class FeedPayload(BaseModel):
     aircraft: list[dict]
+    key: str | None = None
 
 
 class FeederRegistration(BaseModel):
@@ -190,7 +191,7 @@ async def register_feeder(body: FeederRegistration, request: Request):
 
 @app.post("/feed")
 async def feed(body: FeedPayload, request: Request):
-    key = request.headers.get("X-Feeder-Key", "")
+    key = request.headers.get("X-Feeder-Key", "") or (body.key or "")
     if not key:
         raise HTTPException(status_code=401, detail="X-Feeder-Key header required")
 
