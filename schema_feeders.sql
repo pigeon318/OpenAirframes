@@ -2,6 +2,7 @@ CREATE TABLE feeders (
     id          SERIAL PRIMARY KEY,
     key         TEXT UNIQUE NOT NULL,
     name        TEXT NOT NULL,
+    location    TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_seen_at TIMESTAMPTZ,
     aircraft_count INTEGER NOT NULL DEFAULT 0,

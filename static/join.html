@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenAirframes — Join as a Feeder</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f1f5f9;
+    color: #0f172a;
+    min-height: 100vh;
+  }
+
+  header {
+    background: #1e293b;
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    height: 56px;
+    gap: 0.75rem;
+  }
+
+  header h1 { font-size: 1.1rem; font-weight: 600; color: #f8fafc; }
+
+  main {
+    max-width: 640px;
+    margin: 3rem auto;
+    padding: 0 1.5rem;
+  }
+
+  .hero {
+    margin-bottom: 2rem;
+  }
+
+  .hero h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.5rem;
+  }
+
+  .hero p {
+    font-size: 0.95rem;
+    color: #475569;
+    line-height: 1.6;
+  }
+
+  .perks {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 1.25rem 0;
+  }
+
+  .perk {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    font-size: 0.9rem;
+    color: #334155;
+  }
+
+  .perk::before {
+    content: "→";
+    color: #2563eb;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    padding: 1.75rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .card h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+    color: #0f172a;
+  }
+
+  .field {
+    margin-bottom: 1rem;
+  }
+
+  .field label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+    margin-bottom: 0.35rem;
+  }
+
+  .field input {
+    width: 100%;
+    padding: 0.6rem 0.875rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    font-size: 0.9rem;
+    color: #0f172a;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .field input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+  }
+
+  .field small {
+    display: block;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 0.3rem;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 0.7rem 1rem;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-top: 0.25rem;
+  }
+
+  .btn:hover { background: #1d4ed8; }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .error-box {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 0.875rem 1rem;
+    font-size: 0.875rem;
+    color: #b91c1c;
+    margin-top: 0.75rem;
+  }
+
+  .success-card {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    padding: 1.75rem;
+    display: none;
+  }
+
+  .success-card h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #15803d;
+    margin-bottom: 0.5rem;
+  }
+
+  .success-card p {
+    font-size: 0.875rem;
+    color: #475569;
+    margin-bottom: 1.25rem;
+    line-height: 1.6;
+  }
+
+  .key-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.875rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .key-box code {
+    flex: 1;
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 0.85rem;
+    color: #1e293b;
+    word-break: break-all;
+  }
+
+  .copy-btn {
+    padding: 0.35rem 0.75rem;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+
+  .copy-btn:hover { background: #1d4ed8; }
+  .copy-btn.copied { background: #16a34a; }
+
+  .cmd-block {
+    background: #1e293b;
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 0.8rem;
+    color: #e2e8f0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+  }
+
+  .cmd-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+    margin-bottom: 0.4rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 16l-9-4-9 4 9-4 9 4z"/>
+    <path d="M3 16l9 4 9-4"/>
+    <path d="M12 12V3"/>
+    <path d="M5 9l7-6 7 6"/>
+  </svg>
+  <h1>OpenAirframes</h1>
+</header>
+
+<main>
+  <div class="hero">
+    <h2>Become a feeder</h2>
+    <p>OpenAirframes is a free, open, and uncensored aircraft database and ADS-B network. If you have an ADS-B receiver, you can share your coverage with everyone.</p>
+    <div class="perks">
+      <div class="perk">No data locked away — everything you share is visible to everyone</div>
+      <div class="perk">No censorship — all aircraft including military and government are shown</div>
+      <div class="perk">Runs alongside your existing FR24 or FlightAware feeder</div>
+      <div class="perk">A lightweight Python script is all you need</div>
+    </div>
+  </div>
+
+  <div class="card" id="form-card">
+    <h3>Register your receiver</h3>
+    <div class="field">
+      <label>Your name or station name</label>
+      <input id="f-name" type="text" placeholder="e.g. London Heathrow Station">
+    </div>
+    <div class="field">
+      <label>Location <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+      <input id="f-location" type="text" placeholder="e.g. London, UK">
+      <small>Shown on the feeder list — helps others see coverage</small>
+    </div>
+    <button class="btn" id="register-btn" onclick="register()">Get my feeder key</button>
+    <div id="form-error" style="display:none"></div>
+  </div>
+
+  <div class="success-card" id="success-card">
+    <h3>You're registered!</h3>
+    <p>Here is your feeder key. Keep it safe — it's how your receiver is identified on the network.</p>
+
+    <div class="key-box">
+      <code id="key-display"></code>
+      <button class="copy-btn" id="copy-key-btn" onclick="copyKey()">Copy</button>
+    </div>
+
+    <div class="cmd-label">Run this on your receiver</div>
+    <div class="cmd-block" id="cmd-display"></div>
+
+    <div class="cmd-label">Or save the config and run without flags each time</div>
+    <div class="cmd-block" id="cmd-save-display"></div>
+
+    <p style="margin-top:0.75rem;font-size:0.8rem;color:#94a3b8;">
+      The feeder client reads from <code style="font-size:0.78rem">/run/dump1090-mutability/aircraft.json</code> by default.
+      If your setup is different, add <code style="font-size:0.78rem">--source /path/to/aircraft.json</code>.
+    </p>
+  </div>
+</main>
+
+<script>
+  async function register() {
+    const name = document.getElementById('f-name').value.trim();
+    const location = document.getElementById('f-location').value.trim();
+    const errEl = document.getElementById('form-error');
+    const btn = document.getElementById('register-btn');
+
+    errEl.style.display = 'none';
+
+    if (!name) {
+      errEl.innerHTML = '<div class="error-box">Please enter a station name.</div>';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Registering…';
+
+    try {
+      const r = await fetch('/feeders/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, location: location || null }),
+      });
+
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || 'Registration failed');
+      }
+
+      const data = await r.json();
+      showSuccess(name, data.key);
+
+    } catch (e) {
+      errEl.innerHTML = `<div class="error-box">${e.message}</div>`;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Get my feeder key';
+    }
+  }
+
+  function showSuccess(name, key) {
+    document.getElementById('form-card').style.display = 'none';
+    const card = document.getElementById('success-card');
+    card.style.display = 'block';
+    document.getElementById('key-display').textContent = key;
+
+    const server = window.location.origin;
+    const cmd = `python3 scripts/feeder_client.py \\\n  --server ${server} \\\n  --key ${key}`;
+    const cmdSave = `python3 scripts/feeder_client.py \\\n  --server ${server} \\\n  --key ${key} \\\n  --save`;
+
+    document.getElementById('cmd-display').textContent = cmd;
+    document.getElementById('cmd-save-display').textContent = cmdSave;
+  }
+
+  function copyKey() {
+    const key = document.getElementById('key-display').textContent;
+    navigator.clipboard.writeText(key).then(() => {
+      const btn = document.getElementById('copy-key-btn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+
+  document.getElementById('f-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('f-location').focus();
+  });
+
+  document.getElementById('f-location').addEventListener('keydown', e => {
+    if (e.key === 'Enter') register();
+  });
+</script>
+</body>
+</html>

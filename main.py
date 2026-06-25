@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import re
+import secrets
 import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime
@@ -62,6 +63,11 @@ class BulkRequest(BaseModel):
 
 class FeedPayload(BaseModel):
     aircraft: list[dict]
+
+
+class FeederRegistration(BaseModel):
+    name: str
+    location: str | None = None
 
 
 load_dotenv()
@@ -160,6 +166,26 @@ async def version(request: Request):
             await cur.execute("SELECT version()")
             row = await cur.fetchone()
             return {"postgres_version": row[0]}
+
+
+@app.post("/feeders/register")
+async def register_feeder(body: FeederRegistration, request: Request):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    if len(name) > 100:
+        raise HTTPException(status_code=400, detail="Name too long")
+
+    key = secrets.token_urlsafe(32)
+    local_pool = request.app.state.pool
+    async with local_pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "INSERT INTO feeders (key, name, location) VALUES (%s, %s, %s)",
+                (key, name, body.location),
+            )
+
+    return {"key": key, "name": name}
 
 
 @app.post("/feed")
